@@ -1,0 +1,56 @@
+pipeline{
+    agent any
+    
+    environment{
+        SONAR_SCANNER = tool 'sonar-scanner'
+    }
+    
+    stages{
+        stage('checkout'){
+            steps{
+            git branch: 'main', url: "https://github.com/Saikumar03408/Multi-Tier-Python-Postgres.git"
+             }
+       }
+       stage('Install Dependencies'){
+           steps{
+               sh '''
+                  rm -rf venv
+                  # before running theJenkins, add jenkins user in /etc/sudoers.d/jenkins file
+                  # echo "jenkins ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/jenkins
+                  # chmod 440 /etc/sudoers.d/jenkins
+                  sudo apt install python3.14-venv -y
+                  python3 -m venv venv
+                  bash -c "
+                    source venv/bin/activate
+                    pip install --upgrade pip
+                    pip install -r requirements.txt
+                  " 
+                  '''
+           }
+       }
+       stage('tests'){
+           steps{
+               sh '''
+                 bash -c "
+                 source venv/bin/activate
+                 pytest --cov=app --cov-report=xml
+                 pytest --cov=app --cov-report=term-missing --disable=warning
+                 "
+                 '''
+           }
+       }
+       
+       stage('sonar'){
+           steps{
+               withSonarQubeEnv('sonar') {
+                   sh '''
+                     $SONAR_SCANNER/bin/sonar-scanner -Dsonar.projectName=python \
+                     -Dsonar.projectKey=Python -Dsonar.sources=. \
+                     -Dsonar.exclusins=venv/** \
+                     -Dsonar.python.coverage.reportPaths=coverage.xml'''
+
+                 }
+           }
+       }
+    }
+}
